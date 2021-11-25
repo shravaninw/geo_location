@@ -51,6 +51,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    getUserLocation();
   }
 
   getUserLocation() async {
@@ -82,7 +83,8 @@ class _MyHomePageState extends State<MyHomePage> {
         .set(<String, dynamic>{
           'name': name,
           'position': GeoPoint(position.latitude, position.longitude),
-          'geoHash': hash
+          'geoHash': hash,
+          'active': true
         })
         .then((value) => print('Location Created'))
         .catchError((error) => print(error.toString()));
@@ -90,14 +92,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    getUserLocation();
-
+    print('build');
     return Scaffold(
         appBar: AppBar(
           title: Text(widget.title),
         ),
         body: init == true
-            ? ListView(
+            ? Column(
                 children: [
                   Text(
                       'current location:${locat.longitude},${locat.latitude} geohash: $ghash '),
@@ -161,46 +162,42 @@ class _MyHomePageState extends State<MyHomePage> {
                     },
                     child: const Text('ADD'),
                   ),
-                  Column(
-                    children: [
-                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('location')
-                            .snapshots(),
-                        builder: (_, snapshot) {
-                          if (snapshot.hasError) {
-                            return Text('Error = ${snapshot.error}');
-                          }
-                          if (snapshot.hasData) {
-                            final docs = snapshot.data!.docs;
-                            print(docs.length);
-                            return ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: docs.length,
-                              itemBuilder: (_, i) {
-                                final data = docs[i].data();
-                                final GeoPoint lo = data['position'];
-                                final String geo = data['geoHash'];
-
-                                return ListTile(
-                                  key: UniqueKey(),
-                                  tileColor: ghash == geo
-                                      ? Colors.green
-                                      : Colors.transparent,
-                                  title: Text(data['name']),
-                                  subtitle: Text(
-                                      '${lo.longitude},${lo.latitude},$geo'),
-                                );
-                              },
-                            );
-                          }
-
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('location')
+                          .where('active', isEqualTo: true)
+                          .snapshots(),
+                      builder: (_, snapshot) {
+                        print('stream builder');
+                        if (snapshot.hasError) {
+                          return Text('Error = ${snapshot.error}');
+                        }
+                        if (!snapshot.hasData) {
+                          print('has no data');
                           return const Center(
                               child: CircularProgressIndicator());
-                        },
-                      ),
-                    ],
-                  )
+                        }
+                        return ListView(
+                          shrinkWrap: true,
+                          children: snapshot.data!.docs.map(
+                              (QueryDocumentSnapshot<Map<String, dynamic>>
+                                  doc) {
+                            print('has data');
+                            Map<String, dynamic> data = doc.data();
+                            final GeoPoint lo = data['position'];
+                            final String geo = data['geoHash'];
+                            return ListTile(
+                              key: UniqueKey(),
+                              tileColor: ghash == geo
+                                  ? Colors.green
+                                  : Colors.transparent,
+                              title: Text(data['name']),
+                              subtitle:
+                                  Text('${lo.longitude},${lo.latitude},$geo'),
+                            );
+                          }).toList(),
+                        );
+                      })
                 ],
               )
             : const Center(child: CircularProgressIndicator()));
